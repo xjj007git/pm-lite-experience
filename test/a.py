@@ -170,7 +170,7 @@ import matplotlib.pyplot as plt
 with pm.lite.connect(auth_token="123456") as lite:
     with lite.control():
         m = lite.motor(1)
-        m.set_speed(100)
+        m.set_speed(300)
 
         ts, rpms = [], []
         t0 = time.monotonic()
@@ -188,10 +188,46 @@ with pm.lite.connect(auth_token="123456") as lite:
 
 # print(f"采样时间{ts}")
 plt.plot(ts, rpms)  #非常低下的采样效率
-plt.axhline(100, color='r', ls='--', label='target')
+plt.axhline(300, color='r', ls='--', label='target')
 plt.xlabel('time (s)'); plt.ylabel('RPM'); plt.legend()
 plt.show()
 
 
 
 # %%
+# 超声波
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    reading = lite.ultrasonic()
+    print("valid:  ", reading.valid)
+    print("state:  ", reading.state)
+    print("age:    ", reading.age)
+    print("distance:", reading.distance)
+
+
+
+# %%
+# 循迹模块
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    while(1):
+        line = lite.line_tracker()
+        if line.valid:
+            print(line.levels)    # 五路电平
+            print(line.detected)  # 五路检测结果
+
+
+
+# %%
+# 多电机控制
+import time
+import pymotion as pm
+
+with pm.lite.connect(transport="usb") as lite:
+    with lite.control():
+        lite.motors.set_pwms({1: 30, 2: -30})
+        lite.motors.set_speeds({3: 80, 4: 80})
+        time.sleep(2.0)
+        lite.motors.stop()
