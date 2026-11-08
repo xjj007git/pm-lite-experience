@@ -210,6 +210,7 @@ with pm.lite.connect(transport="usb", auth_token="123456") as lite:
 
 
 # %%
+# 超声波例程
 import pymotion as pm
 
 with pm.lite.connect(transport="usb",auth_token="123456") as lite:
@@ -330,7 +331,7 @@ import time
 import pymotion as pm
 import matplotlib.pyplot as plt
 
-THETA = 3600
+ANGLE = 3600
 SPEED = 100
 
 with pm.lite.connect(transport="usb", auth_token="123456") as lite:
@@ -372,7 +373,8 @@ with pm.lite.connect(transport="usb", auth_token="123456") as lite:
         time.sleep(0.3)          # 先采一段静止
 
         t_start = time.monotonic()
-        m.move_to(THETA, speed=SPEED, timeout=20.0)    # angle范围是(-3600,3600)
+        # m.move_to(ANGLE, speed=SPEED, timeout=20.0)    # angle范围是(-3600,3600)
+        m.move_to(ANGLE, timeout=20.0)  # 不设速度情况下 不设置时间就超时 设置时间就encoder_stall
         t_end = time.monotonic()                   # 时间要设好 不然会卡死
 
         time.sleep(0.5)          # 到位后再采一会儿
@@ -403,3 +405,233 @@ plt.title("RPM-T Curve")
 
 plt.tight_layout()  # 自动调整子图间距
 plt.show()
+
+
+
+# %%
+# 获取舵机对象
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    continuous = lite.pwm_servo(1, mode="speed")
+    position = lite.pwm_servo(2, mode="position")
+    print(continuous)
+    print(type(continuous)) # <class 'pymotion_lite.actuators.PwmServo'>
+    print(position)
+    print(type(position))
+
+
+
+# %%
+# 看一下PwmServo类的属性和方法
+import pymotion as pm
+import inspect
+
+cls = pm.lite.PwmServo
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 连续旋转舵机
+# servo.set_speed(speed, *, duration=None)
+# 连续旋转模式下 几乎完全的开环 没有反馈 不能实现精准控制
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    servo = lite.pwm_servo(2, mode="speed")
+    with lite.control():
+        servo.set_speed(40, duration=5.0) 
+        servo.stop()                       # 关闭输出
+
+
+
+# %%
+# 查看函数完整签名
+import inspect
+import pymotion as pm
+
+try:
+    print(inspect.signature(pm.lite.PwmServo.set_speed))
+except Exception as e:
+    print("拿不到:", type(e).__name__, e)
+
+
+
+# %%
+# 查看一下PWM舵机的status返回啥 看看能不能读到速度
+import inspect
+import pymotion as pm
+
+try:
+    print(inspect.signature(pm.lite.PwmServo.status))   # 返回类PwmServoState 这个类没有测量值
+except Exception as e:
+    print("拿不到:", type(e).__name__, e)
+
+
+
+# %%
+# 查看PwmServoState类的属性和方法
+import pymotion as pm
+import inspect
+
+cls = pm.lite.PwmServoState
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 位置舵机  
+### 注意一下 速度舵机和位置舵机在实际物理器件上就是两个东西 接线记得找准 双边是速度 单边是位置 
+# 红线－电源线　棕线－地线　黄线－信号线PWM输入
+# 占空比控制转角 2.5%-12.5%的周期利用率
+import time
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    servo = lite.pwm_servo(2, mode="position")
+    with lite.control():
+        servo.move_to(50)  # 没有阻塞性
+        print("舵机转动中...")
+        time.sleep(2.0)     
+        print("舵机转动完成")
+        servo.stop()       # 关闭输出
+
+
+
+# %%
+# 多舵机控制
+import time
+import pymotion as pm
+
+# 连接设备并在 with 结束时自动关闭
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    with lite.control():
+        lite.pwm_servos.set_speeds({1: 30, 2: -30}) # 速度舵机就会一直转
+        lite.pwm_servos.move_to({3: 30, 4: 150})    # 位置舵机就转一下就停了
+        time.sleep(2.0)
+        lite.pwm_servos.stop()
+
+
+
+# %%
+# 下面看一下lite下面属性pwm_servos有什么方法
+import pymotion as pm
+import inspect
+
+cls = pm.lite.PwmServos
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 看一下单舵机status()
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    servo = lite.pwm_servo(1, mode="speed")
+    # with lite.control():
+    #     servo.set_speed(40, duration=5.0) 
+    #     servo.stop()    
+    state = servo.status()
+    print(state)
+
+
+
+# %%
+# 多舵机状态
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    states = lite.pwm_servos.status()   # 这是一个PwmServoState类组成的字典
+    print(states)
+    for port, state in states.items():
+        print(port, state.mode, state.output_enabled)
+
+
+
+# %%
+# TTL总线舵机配置id
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    with lite.control():
+        result = lite.ttl_servo.set_id(new_id=1)
+    print(result.id, result.max_angle)
+
+
+
+# %%
+# 下面继续看一下
