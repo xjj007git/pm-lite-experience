@@ -304,7 +304,7 @@ with pm.lite.connect(transport="usb",auth_token="123456") as lite:
 # %%
 # 位控特点
 # 1.speed描述的是pwm上限
-# 2.位控具有阻塞性——穿行的必然性 执行完才执行下一条 stop和set_pwm不可中断
+# 2.位控具有阻塞性——串行的必然性 执行完才执行下一条 stop和set_pwm不可中断
 # 3.想要位控并行可以使用开线程？
 import time
 import pymotion as pm
@@ -611,7 +611,7 @@ with pm.lite.connect(transport="usb", auth_token="123456") as lite:
 
 
 # %%
-# 多舵机状态
+# 多PWM舵机状态
 import pymotion as pm
 
 with pm.lite.connect(transport="usb", auth_token="123456") as lite:
@@ -630,8 +630,536 @@ with pm.lite.connect(transport="usb", auth_token="123456") as lite:
     with lite.control():
         result = lite.ttl_servo.set_id(new_id=1)
     print(result.id, result.max_angle)
+    ttl_servo = lite.ttl_servo
+    print(type(ttl_servo))
 
 
 
 # %%
-# 下面继续看一下
+# 下面继续看一下ttl_servo类
+import pymotion as pm
+import inspect
+cls = pm.lite.TtlServo
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+import inspect
+from pymotion_lite.actuators import TtlServoAccessor
+
+cls = TtlServoAccessor
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# TTL位置模式
+import time
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token = "123456") as lite:
+    with lite.control():
+        result = lite.ttl_servo.set_id(new_id=1)
+        print(result.id, result.max_angle)
+
+        # 就电机的位控有阻塞性 PWM和TTL均无阻塞性
+        servo = lite.ttl_servo(1, mode="position")
+        servo.move_to(min(90, servo.max_angle), duration=2.0)   # 无阻塞性
+        time.sleep(2)
+
+        status = servo.status()
+        if status.online:
+            print(status.angle, status.moving)
+
+        servo.stop()
+
+
+
+# %%
+# 多测几组角度看看
+# 大舵机角度误差大 小舵机时好时坏
+import time
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token = "123456") as lite:
+    with lite.control():
+        result = lite.ttl_servo.set_id(new_id=1)
+        print(result.id, result.max_angle)
+
+        servo = lite.ttl_servo(1, mode="position")
+
+        # 就电机的位控有阻塞性 PWM和TTL均无阻塞性
+        for angle in [20, 45, 90, 135, 160]:
+            servo.move_to(angle, duration=3.0)
+
+            time.sleep(3)
+
+            s = servo.status()
+            # print(type(s))
+            print(f"online: {s.online}")
+            print(f"id: {s.id}")
+            print(f"angle: {s.angle}")
+            print(f"voltage: {s.voltage}")
+            print(f"temperature: {s.temperature}")
+            print(f"moving: {s.moving}")
+            print(f"fault_code: {s.fault_code}\n")
+            servo.stop()
+
+
+
+# %%
+# 查看一下status类
+import pymotion as pm
+import inspect
+from pymotion_lite.models import BusServoStatus
+
+cls = BusServoStatus    # 取别名
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# TTL速度模式
+# 关于掉线：这是最需要查清的问题，我先给出明确判断：大概率跟供电有关，但也可能是 USB 线本身；要靠数据排除
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token = "123456") as lite:
+    with lite.control():
+        result = lite.ttl_servo.set_id(new_id=1)
+        print(result.id, result.max_angle)
+
+        servo = lite.ttl_servo(1, mode="speed")
+        servo.set_speed(-50, duration=2.0)   # 速度会阻塞
+
+        print("会阻塞吗")
+
+
+
+# %%
+# 分别配置id
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token = "123456") as lite:
+    with lite.control():
+        # result = lite.ttl_servo.set_id(new_id=1)
+        result = lite.ttl_servo.set_id(new_id=2)
+        print(result.id, result.max_angle)
+
+
+
+# %%
+# 多TTL舵机位置控制
+import time
+import pymotion as pm
+
+# 获取指定 ID 的 TTL 舵机对象
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    with lite.control():
+        left = lite.ttl_servo(1, mode="position")
+        right = lite.ttl_servo(2, mode="position")
+        lite.ttl_servos.move_to({
+            left: min(90, left.max_angle),
+            right: min(180, right.max_angle),
+        }, duration=2.0)
+        time.sleep(2.5)
+        lite.ttl_servos.stop()
+
+
+
+# %%
+# 多TTL舵机速度控制
+import time
+import pymotion as pm
+
+# 获取指定 ID 的 TTL 舵机对象
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    with lite.control():
+        left = lite.ttl_servo(1, mode="speed")
+        right = lite.ttl_servo(2, mode="speed")
+        lite.ttl_servos.set_speeds({
+            left: 50,
+            right: 50,
+        }, duration=2.0)
+        time.sleep(2.5)
+        lite.ttl_servos.stop()
+
+
+
+# %%
+# 看一下ttl_servos下面方法
+import pymotion as pm
+import inspect
+
+cls = pm.lite.TtlServos
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 传感器
+import pymotion as pm
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    lite.sensors(max_age=0.5)
+
+
+
+# %%
+# 看一下SensorObservation
+import pymotion as pm
+import inspect
+
+cls = pm.lite.SensorObservation    # 取别名
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 看下环境光
+import pymotion as pm
+import inspect
+
+cls = pm.lite.AmbientLightReading    # 取别名
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 看下颜色
+import pymotion as pm
+import inspect
+
+cls = pm.lite.ColorReading    # 取别名
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 看下imu
+import pymotion as pm
+import inspect
+
+cls = pm.lite.ImuReading    # 取别名
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 看下循迹
+import pymotion as pm
+import inspect
+
+cls = pm.lite.LineTrackerReading    # 取别名
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# 看下超声波
+import pymotion as pm
+import inspect
+
+cls = pm.lite.UltrasonicReading    # 取别名
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
+
+
+
+# %%
+# imu
+import pymotion as pm
+
+with pm.lite.connect(transport="usb", auth_token="123456") as lite:
+    reading = lite.imu()
+    if reading.valid:
+        print(type(reading.state))
+        print(reading.state)
+
+
+
+# %%
+# 测试电源测量
+import pymotion as pm
+
+# 读取电压与分组电流
+with pm.lite.connect(transport="usb",auth_token="123456") as lite:
+    power = lite.power()
+    if power.voltage is not None:
+        print(type(power))
+        print(power.voltage, "V")
+    current = power.current(3)
+    if current is not None:
+        print(current, "A")
+
+
+
+# %%
+# 看下lite.power返回什么
+import pymotion as pm
+import inspect
+
+cls = pm.lite.PowerReading    # 取别名
+
+props = []
+methods = []
+
+for m in dir(cls):
+    if m.startswith('_'):
+        continue
+    try:
+        attr = inspect.getattr_static(cls, m)
+    except Exception:
+        continue
+
+    kind = type(attr).__name__
+    if 'function' in kind or 'method' in kind or callable(attr):
+        methods.append(m)
+    else:
+        props.append(m)
+
+print(f"===== 属性 ({len(props)}) =====")
+for m in props:
+    print(f"  {m}")
+
+print(f"\n===== 方法 ({len(methods)}) =====")
+for m in methods:
+    print(f"  {m}()")
